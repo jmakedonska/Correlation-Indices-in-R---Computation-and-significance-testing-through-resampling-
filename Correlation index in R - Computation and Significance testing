@@ -1,0 +1,82 @@
+input <- ("C:/Documents and Settings/jm563748/Dropbox/PLoS ONE paper - integration patterns and magnitudes/New data with reduced landmarks/Chiropotes_face_distances_36.txt")
+n.boots <- 999
+cor.threshold <- 0.95
+dataset <- read.table(input, row.names=1, skip=1)
+n.specimens <- length(dataset[,1])
+#define independent variables
+n.variables <- length(dataset[1,])
+
+
+# Declare ICV function
+ICV <- function(matrix.cor) {
+  eigenvalues <- eigen(matrix.cor)$values
+  sd(eigenvalues)/mean(eigenvalues)                             
+}
+
+# Declare CV function
+CV <- function(vector) {
+  sd(vector)/mean(vector)
+}
+
+# Declare mean.CV function
+mean.CV <- function(data.raw) {
+  mean(abs(apply(data.raw, 2, CV)))
+}
+
+# Declare cor.matrix function
+cor.matrix <- function(a,b) {
+  cor(a[lower.tri(a)], b[lower.tri(a)])
+}
+
+# calculate a correlation matrix
+correlation.matrix<-cor(dataset)
+results.variables <- c("ICV", "mean.CV")
+results.matrix <- data.frame(matrix(NA, n.boots+1, length(results.variables)))
+colnames(results.matrix) <- results.variables
+results.matrix$ICV[1] <- ICV(correlation.matrix)
+results.matrix$mean.CV[1] <- mean.CV(dataset[,1:36])
+
+i <- 2
+while (i <= (n.boots+1)) {
+  data.boot <- dataset[sample(n.specimens, replace=T),]
+  cor.boot<-cor(data.boot)
+  if (cor.matrix(correlation.matrix, cor.boot) >= cor.threshold) {
+    results.matrix$ICV[i] <- ICV(cor.boot)
+    results.matrix$mean.CV[i] <- mean.CV(data.boot[,1:36])
+    i <- i + 1
+  } #end if loop
+}
+
+library(car)
+plot(results.matrix$mean.CV, results.matrix$ICV, xlab="Mean CV", ylab="ICV")
+Mean.CV=results.matrix$mean.CV
+ICV=results.matrix$ICV
+dataEllipse(Mean.CV,ICV,levels=0.95, lty=2,fill=TRUE, col=palette()[4:3], fill.alpha=0.1)
+pdf(paste(input, "Results matrix ICV analysis.pdf", sep=""))
+  dataEllipse(Mean.CV,ICV,levels=0.95, lty=2,fill=TRUE, col=palette()[4:3],fill.alpha=0.1)
+dev.off()
+write.csv(results.matrix, paste(input, "Results matrix ICV analysis.csv", sep=""))
+
+results.matrix
+
+
+quantile(ICV, c(0.025, 0.975))
+quantile(Mean.CV, c(0.025, 0.975))
+
+############################
+#Confidence intervals adjustment
+results.matrix$ICV_adj=results.matrix$ICV-0.2415207
+results.matrix$mean.CV_adj=results.matrix$mean.CV+0.000670916
+plot(results.matrix$mean.CV_adj, results.matrix$ICV_adj, xlab="Mean CV", ylab="ICV")
+Mean.CV_adj=results.matrix$mean.CV_adj
+ICV_adj=results.matrix$ICV_adj
+dataEllipse(Mean.CV_adj,ICV_adj,levels=0.95, lty=2,fill=TRUE, col=palette()[4:3], fill.alpha=0.1)
+pdf(paste(input, "Results matrix ICV analysis_adjusted CIs.pdf", sep=""))
+  dataEllipse(Mean.CV_adj,ICV_adj,levels=0.95, lty=2,fill=TRUE, col=palette()[4:3],fill.alpha=0.1)
+dev.off()
+write.csv(results.matrix, paste(input, "Results matrix ICV analysis_adjusted CIs.csv", sep=""))
+
+results.matrix
+
+quantile(ICV_adj, c(0.025, 0.975))
+quantile(Mean.CV_adj, c(0.025, 0.975))
